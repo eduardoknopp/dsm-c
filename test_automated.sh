@@ -26,6 +26,7 @@ cleanup() {
 # Limpar processos anteriores
 cleanup
 
+echo
 echo "1. Iniciando processos DSM..."
 
 # Iniciar processos em background com modo automático

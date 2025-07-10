@@ -24,7 +24,7 @@ Desenvolver uma aplicação distribuída que simule um espaço de endereçamento
 
 ### Estruturas Principais
 
-#### 1. Sistema DSM (`SistemaDSM` em `dsm.h:78-108`)
+#### 1. Sistema DSM (`SistemaDSM` em `dsm.h:78-99`)
 ```c
 typedef struct {
     int meu_id;                           // ID do processo (0-3)
@@ -38,7 +38,7 @@ typedef struct {
 } SistemaDSM;
 ```
 
-#### 2. Cache de Blocos (`BlocoCache` em `dsm.h:57-62`)
+#### 2. Cache de Blocos (`BlocoCache` em `dsm.h:50-55`)
 ```c
 typedef struct {
     int id_bloco;                        // ID do bloco
@@ -49,7 +49,7 @@ typedef struct {
 ```
 
 ### Distribuição de Blocos
-**Implementação**: Função `calcular_dono_bloco()` em `dsm.c:135`
+**Implementação**: Função `calcular_dono_bloco()` em `dsm.c:64`
 ```c
 int calcular_dono_bloco(int id_bloco) {
     return id_bloco % dsm_global->num_processos;  // Distribuição por módulo
@@ -65,8 +65,8 @@ int calcular_dono_bloco(int id_bloco) {
 ## 🔧 API Implementada
 
 ### Função de Leitura
-**Especificação**: `int le(int posicao, byte buffer, int tamanho)`
-**Implementação**: `dsm.c:545-631`
+**Especificação**: `int le(int posicao, byte *buffer, int tamanho)`
+**Implementação**: `dsm.c:490-580`
 
 ```c
 int le(int posicao, byte *buffer, int tamanho)
@@ -80,8 +80,8 @@ int le(int posicao, byte *buffer, int tamanho)
 - ✅ Requisição automática de blocos remotos
 
 ### Função de Escrita
-**Especificação**: `int escreve(int posicao, byte buffer, int tamanho)`
-**Implementação**: `dsm.c:635-700`
+**Especificação**: `int escreve(int posicao, byte *buffer, int tamanho)`
+**Implementação**: `dsm.c:581-642`
 
 ```c
 int escreve(int posicao, byte *buffer, int tamanho)
@@ -96,7 +96,7 @@ int escreve(int posicao, byte *buffer, int tamanho)
 ## 🔄 Protocolo de Coerência de Cache
 
 ### Write-Invalidate Protocol
-**Implementação**: `dsm.c:250-270`
+**Implementação**: `dsm.c:186-217`
 
 #### Cenário de Escrita:
 1. **Validação**: Processo só pode escrever em blocos próprios
@@ -120,7 +120,7 @@ typedef enum {
 ```
 
 ### Thread Servidora
-**Implementação**: `dsm.c:276-375`
+**Implementação**: `dsm.c:219-321`
 
 Processa mensagens de rede:
 - **Requisições de blocos**: Envia dados para outros processos
@@ -155,21 +155,14 @@ gcc -Wall -Wextra -std=c99 -pthread -g -o test_dsm dsm.c test_dsm.c
 
 ### 🎨 Sistema de Logs Hierárquico e Colorido
 - **Estrutura visual com indentação**:
-  - `█ SEÇÕES PRINCIPAIS` - Cabeçalhos de grandes blocos
-  - `  ▶ Subseções` - Passos específicos dos testes  
-  - `    • Detalhes` - Informações complementares
-  - `      [P0] Comunicação` - Mensagens entre processos
-
-- **Cada processo tem sua cor específica**:
-  - Processo 0: 🔵 Azul
-  - Processo 1: 🟣 Magenta  
-  - Processo 2: 🔷 Ciano
-  - Processo 3: 🟡 Amarelo
+  - `█ [P0] SEÇÕES PRINCIPAIS` - Cabeçalhos de grandes blocos com ID do processo
+  - `  ▶ [P0] Subseções` - Passos específicos dos testes  
+  - `    • [P0] Detalhes` - Informações complementares
+  - **Todos os logs identificam o processo**: `[P%d]` onde %d é o ID (0-3)
 
 - **Tipos de mensagem por cor**:
   - ✅ **Verde**: Sucessos
   - ❌ **Vermelho**: Erros
-  - 📋 **Branco bold**: Seções e passos
   - 📝 **Branco**: Detalhes e informações
   - 🔍 **Cinza**: Debug e comunicação
 
@@ -208,7 +201,7 @@ wait
 ## 🧪 Casos de Teste
 
 ### 1. Teste Básico Automático
-**Arquivo**: `test_dsm.c:12-62`
+**Arquivo**: `test_dsm.c:22-74`
 
 #### Testes Executados:
 - ✅ **Escrita Local**: Escreve "Hello DSM World!" em bloco próprio
@@ -218,7 +211,7 @@ wait
 - ✅ **Escrita Remota (Rejected)**: Tentativa de escrita em bloco alheio
 
 ### 2. Modo Interativo
-**Arquivo**: `test_dsm.c:64-146`
+**Arquivo**: `test_dsm.c:75-165`
 
 #### Comandos Disponíveis:
 ```
@@ -254,18 +247,61 @@ DSM[0]> c                      # Estado do cache
 ## 📊 Monitoramento e Debug
 
 ### Estatísticas por Processo
-**Implementação**: `dsm.c:106-117`
+**Implementação**: `dsm.c:36-46`
 - Cache hits e misses
 - Invalidações enviadas e recebidas
 - Taxa de acerto do cache
 
-### Sistema de Logs Hierárquico
-**Implementação**: `dsm.c:19-145`
-- **Seções** (`log_section`): Cabeçalhos principais
-- **Subseções** (`log_subsection`): Passos dos testes
-- **Detalhes** (`log_detail`): Informações complementares
-- **Comunicação** (`log_communication`): Mensagens entre processos
-- **Sucessos/Erros** (`log_success`/`log_error`): Resultados dos testes
+### Sistema de Logs com Identificação de Processo
+**Implementação**: `dsm.c:19-34`
+- **Todas as mensagens incluem `[P%d]`** onde %d é o ID do processo
+- **Seções** (`█`): Cabeçalhos principais
+- **Subseções** (`▶`): Passos dos testes
+- **Detalhes** (`•`): Informações complementares
+- **Sucessos/Erros**: Resultados destacados em cores
+
+#### Exemplo de Saída dos Logs:
+```
+█ [P0] TESTE BÁSICO DO SISTEMA DSM
+
+  ▶ [P0] 1. Testando escrita em bloco local
+    • [P0] Escrevendo 17 bytes na posição 0
+    • [P0] Escrita local realizada no bloco 0
+    • [P0] Invalidando caches remotos para bloco 0
+    • [P0] Mensagem tipo 3 enviada para processo 1 (bloco 0)
+    • [P1] Nova conexão aceita
+    • [P1] Mensagem recebida: tipo=3, bloco=0
+    • [P1] Invalidando bloco 0 no cache local
+    • [P1] Bloco 0 invalidado e ACK enviado
+    • [P0] Invalidações enviadas para 3 de 3 processos
+    • [P0] Escrita bem-sucedida
+
+  ▶ [P0] 1.1 Escrita local bem-sucedida
+
+  ▶ [P0] 2. Testando leitura do bloco local
+    • [P0] Lendo 17 bytes da posição 0
+    • [P0] Lendo bloco local 0
+    • [P0] Leitura local bem-sucedida
+
+  ▶ [P0] 2.1 Leitura local bem-sucedida: 'Hello DSM World!'
+
+  ▶ [P0] 3. Testando acesso a bloco remoto
+    • [P0] Lendo 16 bytes da posição 4096
+    • [P0] Cache miss para bloco 1
+    • [P0] Requisitando bloco 1 do processo 1
+    • [P0] Mensagem tipo 1 enviada para processo 1 (bloco 1)
+    • [P1] Nova conexão aceita
+    • [P1] Mensagem recebida: tipo=1, bloco=1
+    • [P0] Bloco 1 recebido com sucesso do processo 1
+    • [P1] Enviando bloco 1 para cliente
+    • [P0] Bloco 1 carregado no cache e leitura realizada
+
+  ▶ [P0] 3.1 Leitura remota bem-sucedida (cache miss)
+    • [P0] Lendo 16 bytes da posição 4096
+    • [P0] Cache hit para bloco 1
+
+  ▶ [P0] 3.2 Segunda leitura remota bem-sucedida (cache hit)
+```
 
 ## 🛠️ Funcionalidades Implementadas
 
