@@ -15,9 +15,9 @@ Desenvolver uma aplicação distribuída que simule um espaço de endereçamento
 - **bj**: o j-ésimo bloco do espaço de endereçamento
 
 ### Configuração do Sistema
-- **Espaço total**: 1024 blocos × 4KB = 4GB
+- **Espaço total**: 1024 blocos × 4KB = 4MB
 - **Processos**: 4 processos (IDs 0-3)
-- **Distribuição**: Cada processo gerencia ~1GB (256 blocos)
+- **Distribuição**: Cada processo gerencia ~1MB (256 blocos)
 - **Comunicação**: TCP sockets (portas 8080-8083)
 
 ## 🏗️ Arquitetura da Implementação
