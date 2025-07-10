@@ -82,12 +82,13 @@ echo "Os seguintes processos estão rodando:"
 ps aux | grep test_dsm | grep -v grep
 
 # Aguardar sinal de interrupção
-trap cleanup INT TERM
+trap 'cleanup; echo "Teste finalizado."; exit 0' INT TERM
 
 echo
 echo "Pressione Ctrl+C para parar todos os processos..."
 wait
 
-# Cleanup ao sair
+# Se chegou até aqui, os processos terminaram naturalmente
+echo "Todos os processos terminaram naturalmente."
 cleanup
 echo "Teste finalizado." 

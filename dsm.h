@@ -33,12 +33,6 @@ typedef uint8_t byte;
 // Códigos de cor ANSI
 #define COLOR_RESET   "\033[0m"
 
-// Cores para processos
-#define COLOR_PROC0   "\033[1;34m"  // Azul bold
-#define COLOR_PROC1   "\033[1;35m"  // Magenta bold
-#define COLOR_PROC2   "\033[1;36m"  // Ciano bold
-#define COLOR_PROC3   "\033[1;33m"  // Amarelo bold
-
 // Cores para tipos de log
 #define COLOR_SUCCESS "\033[1;32m"  // Verde bold
 #define COLOR_ERROR   "\033[1;31m"  // Vermelho bold

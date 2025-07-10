@@ -14,16 +14,6 @@ static int invalidacoes_recebidas = 0;
 // FUNÇÕES DE DEBUG E UTILIDADES
 // =============================================================================
 
-// Função para obter cor do processo
-const char* get_process_color(int id) {
-    switch(id) {
-        case 0: return COLOR_PROC0;
-        case 1: return COLOR_PROC1;
-        case 2: return COLOR_PROC2;
-        case 3: return COLOR_PROC3;
-        default: return COLOR_DEFAULT;
-    }
-}
 
 // Função de log padronizada
 void log_padronizado(const char *cor, const char *prefixo, const char *formato, ...) {
@@ -44,26 +34,28 @@ void log_padronizado(const char *cor, const char *prefixo, const char *formato, 
 }
 
 void imprimir_estatisticas(void) {
-    log_padronizado(COLOR_DEFAULT, "    • ", "Cache hits: %d", cache_hits);
-    log_padronizado(COLOR_DEFAULT, "    • ", "Cache misses: %d", cache_misses);
-    log_padronizado(COLOR_DEFAULT, "    • ", "Invalidações enviadas: %d", invalidacoes_enviadas);
-    log_padronizado(COLOR_DEFAULT, "    • ", "Invalidações recebidas: %d", invalidacoes_recebidas);
+    int id = (dsm_global != NULL) ? dsm_global->meu_id : -1;
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Cache hits: %d", id, cache_hits);
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Cache misses: %d", id, cache_misses);
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Invalidações enviadas: %d", id, invalidacoes_enviadas);
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Invalidações recebidas: %d", id, invalidacoes_recebidas);
     float taxa = (cache_hits + cache_misses) > 0 ? 
                  (cache_hits * 100.0) / (cache_hits + cache_misses) : 0.0;
-    log_padronizado(COLOR_DEFAULT, "    • ", "Taxa de acerto do cache: %.2f%%", taxa);
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Taxa de acerto do cache: %.2f%%", id, taxa);
 }
 
 void imprimir_estado_cache(void) {
-    log_padronizado(COLOR_STEP, "\n█ ", "ESTADO DO CACHE (Processo %d)", dsm_global->meu_id);
+    int id = dsm_global->meu_id;
+    log_padronizado(COLOR_STEP, "\n█ ", "[P%d] ESTADO DO CACHE", id);
     int blocos_validos = 0;
     for (int i = 0; i < K_NUM_BLOCOS; i++) {
         if (dsm_global->meu_cache[i].valido) {
-            log_padronizado(COLOR_DEFAULT, "    • ", "Bloco %d: VÁLIDO", i);
+            log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Bloco %d: VÁLIDO", id, i);
             blocos_validos++;
         }
     }
-    log_padronizado(COLOR_DEFAULT, "    • ", "Total de blocos em cache: %d", blocos_validos);
-    log_padronizado(COLOR_DEFAULT, "", "=====================================");
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Total de blocos em cache: %d", id, blocos_validos);
+    log_padronizado(COLOR_DEFAULT, "", "[P%d] =====================================", id);
 }
 
 // =============================================================================
@@ -91,13 +83,14 @@ BlocoCache* obter_bloco_cache(int id_bloco) {
 // =============================================================================
 
 int enviar_mensagem(int id_processo_destino, Mensagem *msg) {
+    int id = dsm_global->meu_id;
     if (id_processo_destino < 0 || id_processo_destino >= dsm_global->num_processos) {
-        log_padronizado(COLOR_ERROR, "    • ", "ID de processo destino inválido: %d", id_processo_destino);
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] ID de processo destino inválido: %d", id, id_processo_destino);
         return -1;
     }
     
     if (id_processo_destino == dsm_global->meu_id) {
-        log_padronizado(COLOR_ERROR, "    • ", "Tentativa de enviar mensagem para si mesmo");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Tentativa de enviar mensagem para si mesmo", id);
         return -1;
     }
     
@@ -106,7 +99,7 @@ int enviar_mensagem(int id_processo_destino, Mensagem *msg) {
     // Criar socket cliente
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro ao criar socket cliente: %s", strerror(errno));
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao criar socket cliente: %s", id, strerror(errno));
         return -1;
     }
     
@@ -120,10 +113,10 @@ int enviar_mensagem(int id_processo_destino, Mensagem *msg) {
     // Conectar
     if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
         if (errno == ECONNREFUSED) {
-            log_padronizado(COLOR_ERROR, "    • ", "Processo %d não está disponível (provavelmente finalizado)", id_processo_destino);
+            log_padronizado(COLOR_ERROR, "    • ", "[P%d] Processo %d não está disponível (provavelmente finalizado)", id, id_processo_destino);
         } else {
-            log_padronizado(COLOR_ERROR, "    • ", "Erro ao conectar com processo %d (%s:%d): %s", 
-                       id_processo_destino, destino->ip, destino->porta, strerror(errno));
+            log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao conectar com processo %d (%s:%d): %s", 
+                       id, id_processo_destino, destino->ip, destino->porta, strerror(errno));
         }
         close(sock);
         return -1;
@@ -132,25 +125,26 @@ int enviar_mensagem(int id_processo_destino, Mensagem *msg) {
     // Enviar mensagem
     ssize_t bytes_enviados = send(sock, msg, sizeof(Mensagem), 0);
     if (bytes_enviados != sizeof(Mensagem)) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro ao enviar mensagem completa para processo %d", id_processo_destino);
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao enviar mensagem completa para processo %d", id, id_processo_destino);
         close(sock);
         return -1;
     }
     
-    log_padronizado(COLOR_DEFAULT, "    • ", "Mensagem tipo %d enviada para processo %d (bloco %d)", 
-               msg->tipo, id_processo_destino, msg->id_bloco);
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Mensagem tipo %d enviada para processo %d (bloco %d)", 
+               id, msg->tipo, id_processo_destino, msg->id_bloco);
     
     close(sock);
     return 0;
 }
 
 int receber_mensagem(int socket_cliente, Mensagem *msg) {
+    int id = (dsm_global != NULL) ? dsm_global->meu_id : -1;
     ssize_t bytes_recebidos = recv(socket_cliente, msg, sizeof(Mensagem), MSG_WAITALL);
     if (bytes_recebidos != sizeof(Mensagem)) {
         if (bytes_recebidos == 0) {
-            log_padronizado(COLOR_DEFAULT, "    • ", "Cliente desconectou");
+            log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Cliente desconectou", id);
         } else {
-            log_padronizado(COLOR_ERROR, "    • ", "Erro ao receber mensagem: %s", strerror(errno));
+            log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao receber mensagem: %s", id, strerror(errno));
         }
         return -1;
     }
@@ -162,13 +156,14 @@ int receber_mensagem(int socket_cliente, Mensagem *msg) {
 // =============================================================================
 
 int requisitar_bloco_remoto(int id_bloco) {
+    int id = dsm_global->meu_id;
     int dono = calcular_dono_bloco(id_bloco);
     if (dono == dsm_global->meu_id) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro: tentativa de requisitar bloco próprio %d", id_bloco);
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro: tentativa de requisitar bloco próprio %d", id, id_bloco);
         return -1;
     }
     
-    log_padronizado(COLOR_DEFAULT, "    • ", "Requisitando bloco %d do processo %d", id_bloco, dono);
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Requisitando bloco %d do processo %d", id, id_bloco, dono);
     
     // Preparar mensagem de requisição
     Mensagem msg;
@@ -178,19 +173,20 @@ int requisitar_bloco_remoto(int id_bloco) {
     
     // Enviar requisição
     if (enviar_mensagem(dono, &msg) != 0) {
-        log_padronizado(COLOR_ERROR, "    • ", "Falha ao enviar requisição do bloco %d (processo %d indisponível)", id_bloco, dono);
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Falha ao enviar requisição do bloco %d (processo %d indisponível)", id, id_bloco, dono);
         return -1;
     }
     
     // Aqui em um sistema real, esperaríamos pela resposta de forma assíncrona
     // Para simplificar, vamos simular que a resposta chegou
-    log_padronizado(COLOR_SUCCESS, "    • ", "Bloco %d recebido com sucesso do processo %d", id_bloco, dono);
+    log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Bloco %d recebido com sucesso do processo %d", id, id_bloco, dono);
     
     return 0;
 }
 
 int invalidar_caches_remotos(int id_bloco) {
-    log_padronizado(COLOR_DEFAULT, "    • ", "Invalidando caches remotos para bloco %d", id_bloco);
+    int id = dsm_global->meu_id;
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Invalidando caches remotos para bloco %d", id, id_bloco);
     
     Mensagem msg;
     memset(&msg, 0, sizeof(msg));
@@ -210,9 +206,9 @@ int invalidar_caches_remotos(int id_bloco) {
     }
     
     if (sucesso > 0) {
-        log_padronizado(COLOR_SUCCESS, "    • ", "Invalidações enviadas para %d de %d processos", sucesso, tentativas);
+        log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Invalidações enviadas para %d de %d processos", id, sucesso, tentativas);
     } else {
-        log_padronizado(COLOR_DEFAULT, "    • ", "Nenhum processo disponível para invalidação (todos podem ter finalizado)");
+        log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Nenhum processo disponível para invalidação (todos podem ter finalizado)", id);
     }
     return sucesso;
 }
@@ -223,7 +219,8 @@ int invalidar_caches_remotos(int id_bloco) {
 
 void* thread_servidora(void* arg) {
     (void)arg; // Suprimir warning de parâmetro não utilizado
-    log_padronizado(COLOR_DEFAULT, "    • ", "Thread servidora iniciada");
+    int id = dsm_global->meu_id;
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Thread servidora iniciada", id);
     
     while (dsm_global->servidor_rodando) {
         struct sockaddr_in addr_cliente;
@@ -235,23 +232,23 @@ void* thread_servidora(void* arg) {
         
         if (socket_cliente == -1) {
             if (dsm_global->servidor_rodando) {
-                log_padronizado(COLOR_ERROR, "    • ", "Erro ao aceitar conexão: %s", strerror(errno));
+                log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao aceitar conexão: %s", id, strerror(errno));
             }
             continue;
         }
         
-        log_padronizado(COLOR_DEFAULT, "    • ", "Nova conexão aceita");
+        log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Nova conexão aceita", id);
         
         // Receber mensagem
         Mensagem msg;
         if (receber_mensagem(socket_cliente, &msg) == 0) {
-            log_padronizado(COLOR_DEFAULT, "    • ", "Mensagem recebida: tipo=%d, bloco=%d", msg.tipo, msg.id_bloco);
+            log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Mensagem recebida: tipo=%d, bloco=%d", id, msg.tipo, msg.id_bloco);
             
             switch (msg.tipo) {
                 case MSG_REQUISICAO_BLOCO: {
                     // Verificar se tenho o bloco
                     if (e_meu_bloco(msg.id_bloco)) {
-                        log_padronizado(COLOR_DEFAULT, "    • ", "Enviando bloco %d para cliente", msg.id_bloco);
+                        log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Enviando bloco %d para cliente", id, msg.id_bloco);
                         
                         // Preparar resposta com os dados do bloco
                         Mensagem resposta;
@@ -275,18 +272,18 @@ void* thread_servidora(void* arg) {
                             
                             // Enviar resposta
                             send(socket_cliente, &resposta, sizeof(resposta), 0);
-                            log_padronizado(COLOR_SUCCESS, "    • ", "Bloco %d enviado com sucesso", msg.id_bloco);
+                            log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Bloco %d enviado com sucesso", id, msg.id_bloco);
                         } else {
-                            log_padronizado(COLOR_ERROR, "    • ", "Erro: bloco %d não encontrado na memória local", msg.id_bloco);
+                            log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro: bloco %d não encontrado na memória local", id, msg.id_bloco);
                         }
                     } else {
-                        log_padronizado(COLOR_ERROR, "    • ", "Erro: requisição para bloco %d que não me pertence", msg.id_bloco);
+                        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro: requisição para bloco %d que não me pertence", id, msg.id_bloco);
                     }
                     break;
                 }
                 
                 case MSG_INVALIDAR_BLOCO: {
-                    log_padronizado(COLOR_DEFAULT, "    • ", "Invalidando bloco %d no cache local", msg.id_bloco);
+                    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Invalidando bloco %d no cache local", id, msg.id_bloco);
                     
                     pthread_mutex_lock(&dsm_global->meu_cache[msg.id_bloco].mutex);
                     dsm_global->meu_cache[msg.id_bloco].valido = 0;
@@ -301,12 +298,12 @@ void* thread_servidora(void* arg) {
                     ack.id_bloco = msg.id_bloco;
                     send(socket_cliente, &ack, sizeof(ack), 0);
                     
-                    log_padronizado(COLOR_SUCCESS, "    • ", "Bloco %d invalidado e ACK enviado", msg.id_bloco);
+                    log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Bloco %d invalidado e ACK enviado", id, msg.id_bloco);
                     break;
                 }
                 
                 default:
-                    log_padronizado(COLOR_ERROR, "    • ", "Tipo de mensagem desconhecido: %d", msg.tipo);
+                    log_padronizado(COLOR_ERROR, "    • ", "[P%d] Tipo de mensagem desconhecido: %d", id, msg.tipo);
                     break;
             }
         }
@@ -314,7 +311,7 @@ void* thread_servidora(void* arg) {
         close(socket_cliente);
     }
     
-    log_padronizado(COLOR_DEFAULT, "    • ", "Thread servidora finalizada");
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Thread servidora finalizada", id);
     return NULL;
 }
 
@@ -324,14 +321,14 @@ void* thread_servidora(void* arg) {
 
 int dsm_init(int meu_id, InfoProcesso processos[], int num_processos) {
     if (dsm_global != NULL) {
-        log_padronizado(COLOR_ERROR, "    • ", "Sistema DSM já inicializado");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Sistema DSM já inicializado", meu_id);
         return -1;
     }
     
     // Alocar estrutura principal
     dsm_global = (SistemaDSM*)malloc(sizeof(SistemaDSM));
     if (!dsm_global) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro ao alocar memória para sistema DSM");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao alocar memória para sistema DSM", meu_id);
         return -1;
     }
     
@@ -363,7 +360,7 @@ int dsm_init(int meu_id, InfoProcesso processos[], int num_processos) {
     dsm_global->meus_blocos = (int*)malloc(dsm_global->num_blocos_locais * sizeof(int));
     
     if (!dsm_global->minha_memoria_local || !dsm_global->meus_blocos) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro ao alocar memória local");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao alocar memória local", meu_id);
         dsm_cleanup();
         return -1;
     }
@@ -374,7 +371,7 @@ int dsm_init(int meu_id, InfoProcesso processos[], int num_processos) {
         if (e_meu_bloco(i)) {
             dsm_global->minha_memoria_local[idx_local] = (byte*)calloc(T_TAMANHO_BLOCO, sizeof(byte));
             if (!dsm_global->minha_memoria_local[idx_local]) {
-                log_padronizado(COLOR_ERROR, "    • ", "Erro ao alocar bloco local %d", i);
+                log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao alocar bloco local %d", meu_id, i);
                 dsm_cleanup();
                 return -1;
             }
@@ -396,7 +393,7 @@ int dsm_init(int meu_id, InfoProcesso processos[], int num_processos) {
     // Criar socket servidor
     dsm_global->socket_servidor = socket(AF_INET, SOCK_STREAM, 0);
     if (dsm_global->socket_servidor == -1) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro ao criar socket servidor: %s", strerror(errno));
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao criar socket servidor: %s", meu_id, strerror(errno));
         dsm_cleanup();
         return -1;
     }
@@ -414,28 +411,28 @@ int dsm_init(int meu_id, InfoProcesso processos[], int num_processos) {
     
     // Bind
     if (bind(dsm_global->socket_servidor, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro ao fazer bind na porta %d: %s", processos[meu_id].porta, strerror(errno));
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao fazer bind na porta %d: %s", meu_id, processos[meu_id].porta, strerror(errno));
         dsm_cleanup();
         return -1;
     }
     
     // Listen
     if (listen(dsm_global->socket_servidor, 10) == -1) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro ao fazer listen: %s", strerror(errno));
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao fazer listen: %s", meu_id, strerror(errno));
         dsm_cleanup();
         return -1;
     }
     
     // Criar thread servidora
     if (pthread_create(&dsm_global->thread_servidor, NULL, thread_servidora, NULL) != 0) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro ao criar thread servidora");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao criar thread servidora", meu_id);
         dsm_cleanup();
         return -1;
     }
     
-    log_padronizado(COLOR_SUCCESS, "    • ", "Sistema DSM inicializado com sucesso");
-    log_padronizado(COLOR_DEFAULT, "    • ", "Processo %d possui %d blocos", meu_id, dsm_global->num_blocos_locais);
-    log_padronizado(COLOR_DEFAULT, "    • ", "Servidor escutando na porta %d", processos[meu_id].porta);
+    log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Sistema DSM inicializado com sucesso", meu_id);
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Processo possui %d blocos", meu_id, dsm_global->num_blocos_locais);
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Servidor escutando na porta %d", meu_id, processos[meu_id].porta);
     
     return 0;
 }
@@ -443,7 +440,8 @@ int dsm_init(int meu_id, InfoProcesso processos[], int num_processos) {
 int dsm_cleanup(void) {
     if (!dsm_global) return 0;
     
-    log_padronizado(COLOR_DEFAULT, "    • ", "Finalizando sistema DSM");
+    int id = dsm_global->meu_id;
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Finalizando sistema DSM", id);
     
     // Parar servidor
     dsm_global->servidor_rodando = 0;
@@ -482,7 +480,7 @@ int dsm_cleanup(void) {
     free(dsm_global);
     dsm_global = NULL;
     
-    log_padronizado(COLOR_DEFAULT, "    • ", "Sistema DSM finalizado");
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Sistema DSM finalizado", id);
     return 0;
 }
 
@@ -492,21 +490,22 @@ int dsm_cleanup(void) {
 
 int le(int posicao, byte *buffer, int tamanho) {
     if (!dsm_global) {
-        log_padronizado(COLOR_ERROR, "    • ", "Sistema DSM não inicializado");
+        log_padronizado(COLOR_ERROR, "    • ", "[P?] Sistema DSM não inicializado");
         return -1;
     }
     
+    int id = dsm_global->meu_id;
     if (!buffer || tamanho <= 0 || posicao < 0) {
-        log_padronizado(COLOR_ERROR, "    • ", "Parâmetros inválidos para leitura");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Parâmetros inválidos para leitura", id);
         return -1;
     }
     
     if (posicao + tamanho > TAMANHO_MEMORIA_TOTAL) {
-        log_padronizado(COLOR_ERROR, "    • ", "Leitura fora dos limites da memória");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Leitura fora dos limites da memória", id);
         return -1;
     }
     
-    log_padronizado(COLOR_DEFAULT, "    • ", "Lendo %d bytes da posição %d", tamanho, posicao);
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Lendo %d bytes da posição %d", id, tamanho, posicao);
     
     // Calcular bloco e offset
     int id_bloco = posicao / T_TAMANHO_BLOCO;
@@ -514,7 +513,7 @@ int le(int posicao, byte *buffer, int tamanho) {
     
     // Verificar se não ultrapassa o limite do bloco
     if (offset + tamanho > T_TAMANHO_BLOCO) {
-        log_padronizado(COLOR_ERROR, "    • ", "Leitura atravessa limite de bloco - não suportado nesta implementação");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Leitura atravessa limite de bloco - não suportado nesta implementação", id);
         return -1;
     }
     
@@ -522,7 +521,7 @@ int le(int posicao, byte *buffer, int tamanho) {
     
     if (dono == dsm_global->meu_id) {
         // Bloco é meu - ler da memória local
-        log_padronizado(COLOR_DEFAULT, "    • ", "Lendo bloco local %d", id_bloco);
+        log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Lendo bloco local %d", id, id_bloco);
         
         // Encontrar índice na memória local
         int idx_local = -1;
@@ -535,10 +534,10 @@ int le(int posicao, byte *buffer, int tamanho) {
         
         if (idx_local >= 0) {
             memcpy(buffer, &dsm_global->minha_memoria_local[idx_local][offset], tamanho);
-            log_padronizado(COLOR_SUCCESS, "    • ", "Leitura local bem-sucedida");
+            log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Leitura local bem-sucedida", id);
             return 0;
         } else {
-            log_padronizado(COLOR_ERROR, "    • ", "Erro: bloco local %d não encontrado", id_bloco);
+            log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro: bloco local %d não encontrado", id, id_bloco);
             return -1;
         }
     } else {
@@ -549,12 +548,12 @@ int le(int posicao, byte *buffer, int tamanho) {
         
         if (cache_bloco->valido) {
             // Cache hit
-            log_padronizado(COLOR_SUCCESS, "    • ", "Cache hit para bloco %d", id_bloco);
+            log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Cache hit para bloco %d", id, id_bloco);
             memcpy(buffer, &cache_bloco->dados[offset], tamanho);
             cache_hits++;
         } else {
             // Cache miss
-            log_padronizado(COLOR_DEFAULT, "    • ", "Cache miss para bloco %d", id_bloco);
+            log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Cache miss para bloco %d", id, id_bloco);
             cache_misses++;
             
             // Requisitar bloco do dono
@@ -567,10 +566,10 @@ int le(int posicao, byte *buffer, int tamanho) {
                 cache_bloco->valido = 1;
                 
                 memcpy(buffer, &cache_bloco->dados[offset], tamanho);
-                log_padronizado(COLOR_SUCCESS, "    • ", "Bloco %d carregado no cache e leitura realizada", id_bloco);
+                log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Bloco %d carregado no cache e leitura realizada", id, id_bloco);
             } else {
                 pthread_mutex_unlock(&cache_bloco->mutex);
-                log_padronizado(COLOR_ERROR, "    • ", "Falha ao requisitar bloco remoto %d", id_bloco);
+                log_padronizado(COLOR_ERROR, "    • ", "[P%d] Falha ao requisitar bloco remoto %d", id, id_bloco);
                 return -1;
             }
         }
@@ -582,21 +581,22 @@ int le(int posicao, byte *buffer, int tamanho) {
 
 int escreve(int posicao, byte *buffer, int tamanho) {
     if (!dsm_global) {
-        log_padronizado(COLOR_ERROR, "    • ", "Sistema DSM não inicializado");
+        log_padronizado(COLOR_ERROR, "    • ", "[P?] Sistema DSM não inicializado");
         return -1;
     }
     
+    int id = dsm_global->meu_id;
     if (!buffer || tamanho <= 0 || posicao < 0) {
-        log_padronizado(COLOR_ERROR, "    • ", "Parâmetros inválidos para escrita");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Parâmetros inválidos para escrita", id);
         return -1;
     }
     
     if (posicao + tamanho > TAMANHO_MEMORIA_TOTAL) {
-        log_padronizado(COLOR_ERROR, "    • ", "Escrita fora dos limites da memória");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Escrita fora dos limites da memória", id);
         return -1;
     }
     
-    log_padronizado(COLOR_DEFAULT, "    • ", "Escrevendo %d bytes na posição %d", tamanho, posicao);
+    log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Escrevendo %d bytes na posição %d", id, tamanho, posicao);
     
     // Calcular bloco e offset
     int id_bloco = posicao / T_TAMANHO_BLOCO;
@@ -604,15 +604,15 @@ int escreve(int posicao, byte *buffer, int tamanho) {
     
     // Verificar se não ultrapassa o limite do bloco
     if (offset + tamanho > T_TAMANHO_BLOCO) {
-        log_padronizado(COLOR_ERROR, "    • ", "Escrita atravessa limite de bloco - não suportado nesta implementação");
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Escrita atravessa limite de bloco - não suportado nesta implementação", id);
         return -1;
     }
     
     int dono = calcular_dono_bloco(id_bloco);
     
     if (dono != dsm_global->meu_id) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro: Tentativa de escrita em bloco %d que pertence ao processo %d", 
-                   id_bloco, dono);
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro: Tentativa de escrita em bloco %d que pertence ao processo %d", 
+                   id, id_bloco, dono);
         return -1;
     }
     
@@ -626,17 +626,17 @@ int escreve(int posicao, byte *buffer, int tamanho) {
     }
     
     if (idx_local < 0) {
-        log_padronizado(COLOR_ERROR, "    • ", "Erro: bloco local %d não encontrado", id_bloco);
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro: bloco local %d não encontrado", id, id_bloco);
         return -1;
     }
     
     // Realizar a escrita na memória local
     memcpy(&dsm_global->minha_memoria_local[idx_local][offset], buffer, tamanho);
-    log_padronizado(COLOR_SUCCESS, "    • ", "Escrita local realizada no bloco %d", id_bloco);
+    log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Escrita local realizada no bloco %d", id, id_bloco);
     
     // Invalidar caches remotos (protocolo Write-Invalidate)
     invalidar_caches_remotos(id_bloco);
     
-    log_padronizado(COLOR_SUCCESS, "    • ", "Escrita bem-sucedida");
+    log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Escrita bem-sucedida", id);
     return 0;
 } 
