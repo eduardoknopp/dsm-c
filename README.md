@@ -24,7 +24,7 @@ Desenvolver uma aplicação distribuída que simule um espaço de endereçamento
 
 ### Estruturas Principais
 
-#### 1. Sistema DSM (`SistemaDSM` em `dsm.h:78-99`)
+#### 1. Sistema DSM (`SistemaDSM` em `dsm.h:72-101`)
 ```c
 typedef struct {
     int meu_id;                           // ID do processo (0-3)
@@ -38,7 +38,7 @@ typedef struct {
 } SistemaDSM;
 ```
 
-#### 2. Cache de Blocos (`BlocoCache` em `dsm.h:50-55`)
+#### 2. Cache de Blocos (`BlocoCache` em `dsm.h:49-57`)
 ```c
 typedef struct {
     int id_bloco;                        // ID do bloco
@@ -49,7 +49,7 @@ typedef struct {
 ```
 
 ### Distribuição de Blocos
-**Implementação**: Função `calcular_dono_bloco()` em `dsm.c:64`
+**Implementação**: Função `calcular_dono_bloco()` em `dsm.c:62-67`
 ```c
 int calcular_dono_bloco(int id_bloco) {
     return id_bloco % dsm_global->num_processos;  // Distribuição por módulo
@@ -66,7 +66,7 @@ int calcular_dono_bloco(int id_bloco) {
 
 ### Função de Leitura
 **Especificação**: `int le(int posicao, byte *buffer, int tamanho)`
-**Implementação**: `dsm.c:490-580`
+**Implementação**: `dsm.c:536-623`
 
 ```c
 int le(int posicao, byte *buffer, int tamanho)
@@ -81,7 +81,7 @@ int le(int posicao, byte *buffer, int tamanho)
 
 ### Função de Escrita
 **Especificação**: `int escreve(int posicao, byte *buffer, int tamanho)`
-**Implementação**: `dsm.c:581-642`
+**Implementação**: `dsm.c:623-684`
 
 ```c
 int escreve(int posicao, byte *buffer, int tamanho)
@@ -96,7 +96,7 @@ int escreve(int posicao, byte *buffer, int tamanho)
 ## 🔄 Protocolo de Coerência de Cache
 
 ### Write-Invalidate Protocol
-**Implementação**: `dsm.c:186-217`
+**Implementação**: `dsm.c:223-252`
 
 #### Cenário de Escrita:
 1. **Validação**: Processo só pode escrever em blocos próprios
@@ -109,7 +109,7 @@ int escreve(int posicao, byte *buffer, int tamanho)
 2. **Cache Hit**: Retorna dados do cache local
 3. **Cache Miss**: Requisita bloco do dono via `MSG_REQUISICAO_BLOCO`
 
-### Tipos de Mensagem (`dsm.h:22-27`)
+### Tipos de Mensagem (`dsm.h:21-29`)
 ```c
 typedef enum {
     MSG_REQUISICAO_BLOCO = 1,    // Solicitar bloco remoto
@@ -120,7 +120,7 @@ typedef enum {
 ```
 
 ### Thread Servidora
-**Implementação**: `dsm.c:219-321`
+**Implementação**: `dsm.c:256-358`
 
 Processa mensagens de rede:
 - **Requisições de blocos**: Envia dados para outros processos
@@ -209,7 +209,7 @@ wait
 ## 🧪 Casos de Teste
 
 ### 1. Teste Básico Automático
-**Arquivo**: `test_dsm.c:22-74`
+**Arquivo**: `test_dsm.c:25-78`
 
 #### Testes Executados:
 - ✅ **Escrita Local**: Escreve "Hello DSM World!" em bloco próprio
@@ -219,7 +219,7 @@ wait
 - ✅ **Escrita Remota (Rejected)**: Tentativa de escrita em bloco alheio
 
 ### 2. Modo Interativo
-**Arquivo**: `test_dsm.c:75-165`
+**Arquivo**: `test_dsm.c:78-162`
 
 #### Comandos Disponíveis:
 ```
@@ -255,13 +255,13 @@ DSM[0]> c                      # Estado do cache
 ## 📊 Monitoramento e Debug
 
 ### Estatísticas por Processo
-**Implementação**: `dsm.c:36-46`
+**Implementação**: `dsm.c:35-45`
 - Cache hits e misses
 - Invalidações enviadas e recebidas
 - Taxa de acerto do cache
 
 ### Sistema de Logs com Identificação de Processo
-**Implementação**: `dsm.c:19-34`
+**Implementação**: `dsm.c:17-35`
 - **Todas as mensagens incluem `[P%d]`** onde %d é o ID do processo
 - **Seções** (`█`): Cabeçalhos principais
 - **Subseções** (`▶`): Passos dos testes
