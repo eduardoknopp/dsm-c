@@ -90,6 +90,6 @@ echo "Pressione Ctrl+C para parar todos os processos..."
 wait
 
 # Se chegou até aqui, os processos terminaram naturalmente
+echo
 echo "Todos os processos terminaram naturalmente."
-cleanup
 echo "Teste finalizado." 

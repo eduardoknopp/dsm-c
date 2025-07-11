@@ -136,6 +136,8 @@ Processa mensagens de rede:
 
 ### Scripts de Teste
 - **`test_automated.sh`** - Script para teste automatizado com 4 processos
+- **`test_manual.sh`** - Script guiado para testes manuais interativos
+- **`EXPLICACAO_TESTE_AUTOMATICO.md`** - Documentação detalhada do teste automático
 
 ## 🚀 Compilação e Execução
 
@@ -197,6 +199,12 @@ wait
 ./test_automated.sh
 ```
 > Este script executa todos os processos em modo automático com logs coloridos, sem interface interativa.
+
+**Opção 4: Script de testes manuais guiados**
+```bash
+./test_manual.sh
+```
+> Script interativo que guia você através de vários cenários de teste com explicações detalhadas.
 
 ## 🧪 Casos de Teste
 

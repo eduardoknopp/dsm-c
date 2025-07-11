@@ -119,7 +119,7 @@ int receber_mensagem(int socket_cliente, Mensagem *msg);
 BlocoCache* obter_bloco_cache(int id_bloco);
 int requisitar_bloco_remoto(int id_bloco);
 int invalidar_caches_remotos(int id_bloco);
-void imprimir_estatisticas(void);
+void imprimir_estatisticas(int id);
 
 // Função de log padronizada
 void log_padronizado(const char *cor, const char *prefixo, const char *formato, ...);

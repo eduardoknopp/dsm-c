@@ -33,8 +33,7 @@ void log_padronizado(const char *cor, const char *prefixo, const char *formato, 
     fflush(stdout);
 }
 
-void imprimir_estatisticas(void) {
-    int id = (dsm_global != NULL) ? dsm_global->meu_id : -1;
+void imprimir_estatisticas(int id) {
     log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Cache hits: %d", id, cache_hits);
     log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Cache misses: %d", id, cache_misses);
     log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Invalidações enviadas: %d", id, invalidacoes_enviadas);
@@ -55,7 +54,6 @@ void imprimir_estado_cache(void) {
         }
     }
     log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Total de blocos em cache: %d", id, blocos_validos);
-    log_padronizado(COLOR_DEFAULT, "", "[P%d] =====================================", id);
 }
 
 // =============================================================================
@@ -221,6 +219,10 @@ void* thread_servidora(void* arg) {
     (void)arg; // Suprimir warning de parâmetro não utilizado
     int id = dsm_global->meu_id;
     log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Thread servidora iniciada", id);
+    
+    // Configurar thread para ser cancelável
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     
     while (dsm_global->servidor_rodando) {
         struct sockaddr_in addr_cliente;
@@ -453,6 +455,8 @@ int dsm_cleanup(void) {
     
     // Esperar thread servidora terminar
     if (dsm_global->thread_servidor != 0) {
+        // Tentar cancelar a thread se ela estiver bloqueada em accept()
+        pthread_cancel(dsm_global->thread_servidor);
         pthread_join(dsm_global->thread_servidor, NULL);
     }
     
@@ -466,14 +470,17 @@ int dsm_cleanup(void) {
         free(dsm_global->minha_memoria_local);
     }
     
+    // Liberar array de blocos
     if (dsm_global->meus_blocos) {
         free(dsm_global->meus_blocos);
     }
     
-    // Destruir mutexes
+    // Destruir mutexes do cache
     for (int i = 0; i < K_NUM_BLOCOS; i++) {
         pthread_mutex_destroy(&dsm_global->meu_cache[i].mutex);
     }
+    
+    // Destruir mutex global
     pthread_mutex_destroy(&dsm_global->mutex_global);
     
     // Liberar estrutura principal

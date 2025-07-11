@@ -18,6 +18,9 @@ void signal_handler(int sig) {
     continuar_executando = 0;
     int id = (dsm_global != NULL) ? dsm_global->meu_id : -1;
     log_padronizado(COLOR_DEFAULT, "\n    • ", "[P%d] Recebido sinal de interrupção. Finalizando...", id);
+    
+    // Chamar dsm_cleanup aqui para garantir que termine corretamente
+    dsm_cleanup();
 }
 
 void teste_basico() {
@@ -106,6 +109,7 @@ void teste_interativo() {
         sscanf(linha, "%s", comando);
         
         if (strcmp(comando, "q") == 0 || strcmp(comando, "quit") == 0) {
+            continuar_executando = 0;
             break;
         } else if (strcmp(comando, "help") == 0) {
             log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Comandos:", id);
@@ -139,7 +143,7 @@ void teste_interativo() {
         } else if (strcmp(comando, "w") == 0) {
             if (sscanf(linha, "w %d %255s", &posicao, dados) == 2) {
                 if (escreve(posicao, (byte*)dados, strlen(dados) + 1) == 0) {
-                    log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Escrita bem-sucedida", id);
+                    log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Escrita realizada com sucesso", id);
                 } else {
                     log_padronizado(COLOR_ERROR, "    • ", "[P%d] Falha na escrita", id);
                 }
@@ -147,7 +151,7 @@ void teste_interativo() {
                 log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Uso: w <posicao> <dados>", id);
             }
         } else if (strcmp(comando, "s") == 0) {
-            imprimir_estatisticas();
+            imprimir_estatisticas(id);
         } else if (strcmp(comando, "c") == 0) {
             imprimir_estado_cache();
         } else {
@@ -204,33 +208,34 @@ int main(int argc, char *argv[]) {
         dsm_global->meus_blocos[6], dsm_global->meus_blocos[7], dsm_global->meus_blocos[8],
         dsm_global->meus_blocos[9]);
     
-    // Aguardar um pouco para outros processos iniciarem
-    log_padronizado(COLOR_DEFAULT, "    • ","[P%d] Aguardando outros processos (10 segundos)...", meu_id);
-    sleep(10);
-    
-    // Executar testes
-    teste_basico();
-    
     // Modo interativo (apenas se não for automático)
     if (!modo_automatico) {
-        log_padronizado(COLOR_DEFAULT, "    • ","[P%d] \nPressione Enter para entrar no modo interativo ou Ctrl+C para sair...", meu_id);
+        sleep(3);
+        log_padronizado(COLOR_DEFAULT, "\n    • ","[P%d] Pressione Enter para entrar no modo interativo ou Ctrl+C para sair...", meu_id);
         getchar();
         
         if (continuar_executando) {
             teste_interativo();
         }
     } else {
+        // Aguardar um pouco para outros processos iniciarem
+        log_padronizado(COLOR_DEFAULT, "    • ","[P%d] Aguardando outros processos (10 segundos)...", meu_id);
+        sleep(10);
+        
+        // Executar testes
+        teste_basico();
         // Aguardar mais tempo no modo automático para outros processos completarem
-        // suas operações de comunicação antes de terminar
         sleep(15);
     }
     
     // Mostrar estatísticas finais
     log_padronizado(COLOR_STEP, "\n█ ","[P%d] ESTATÍSTICAS FINAIS", meu_id);
-    imprimir_estatisticas();
+    imprimir_estatisticas(meu_id);
     
-    // Limpar sistema
-    dsm_cleanup();
+    // Limpar sistema (apenas se não foi chamado pelo signal_handler)
+    if (continuar_executando) {
+        dsm_cleanup();
+    }
     
     log_padronizado(COLOR_DEFAULT, "    • ","[P%d] Processo finalizado.", meu_id);
     return 0;
