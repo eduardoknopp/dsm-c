@@ -153,7 +153,7 @@ int receber_mensagem(int socket_cliente, Mensagem *msg) {
 // OPERAÇÕES COM BLOCOS REMOTOS
 // =============================================================================
 
-int requisitar_bloco_remoto(int id_bloco) {
+int requisitar_bloco_remoto(int id_bloco, byte *dados_recebidos) {
     int id = dsm_global->meu_id;
     int dono = calcular_dono_bloco(id_bloco);
     if (dono == dsm_global->meu_id) {
@@ -163,20 +163,59 @@ int requisitar_bloco_remoto(int id_bloco) {
     
     log_padronizado(COLOR_DEFAULT, "    • ", "[P%d] Requisitando bloco %d do processo %d", id, id_bloco, dono);
     
-    // Preparar mensagem de requisição
+    InfoProcesso *destino = &dsm_global->processos[dono];
+    
+    // Criar socket cliente
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == -1) {
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao criar socket para requisição: %s", id, strerror(errno));
+        return -1;
+    }
+    
+    // Configurar endereço do destino
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(destino->porta);
+    inet_pton(AF_INET, destino->ip, &addr.sin_addr);
+    
+    // Conectar
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Falha ao conectar com processo %d: %s", id, dono, strerror(errno));
+        close(sock);
+        return -1;
+    }
+    
+    // Preparar e enviar mensagem de requisição
     Mensagem msg;
     memset(&msg, 0, sizeof(msg));
     msg.tipo = MSG_REQUISICAO_BLOCO;
     msg.id_bloco = id_bloco;
     
-    // Enviar requisição
-    if (enviar_mensagem(dono, &msg) != 0) {
-        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Falha ao enviar requisição do bloco %d (processo %d indisponível)", id, id_bloco, dono);
+    if (send(sock, &msg, sizeof(msg), 0) != sizeof(msg)) {
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao enviar requisição do bloco %d", id, id_bloco);
+        close(sock);
         return -1;
     }
     
-    // Aqui em um sistema real, esperaríamos pela resposta de forma assíncrona
-    // Para simplificar, vamos simular que a resposta chegou
+    // Receber resposta
+    Mensagem resposta;
+    if (recv(sock, &resposta, sizeof(resposta), MSG_WAITALL) != sizeof(resposta)) {
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Erro ao receber resposta do bloco %d", id, id_bloco);
+        close(sock);
+        return -1;
+    }
+    
+    close(sock);
+    
+    // Verificar se a resposta é válida
+    if (resposta.tipo != MSG_RESPOSTA_BLOCO || resposta.id_bloco != id_bloco) {
+        log_padronizado(COLOR_ERROR, "    • ", "[P%d] Resposta inválida para bloco %d", id, id_bloco);
+        return -1;
+    }
+    
+    // Copiar dados recebidos
+    memcpy(dados_recebidos, resposta.dados, T_TAMANHO_BLOCO);
     log_padronizado(COLOR_SUCCESS, "    • ", "[P%d] Bloco %d recebido com sucesso do processo %d", id, id_bloco, dono);
     
     return 0;
@@ -564,12 +603,8 @@ int le(int posicao, byte *buffer, int tamanho) {
             cache_misses++;
             
             // Requisitar bloco do dono
-            if (requisitar_bloco_remoto(id_bloco) == 0) {
-                // Simular recebimento dos dados (em um sistema real, isso seria assíncrono)
-                // Por simplicidade, vamos preencher com dados de teste
-                for (int i = 0; i < T_TAMANHO_BLOCO; i++) {
-                    cache_bloco->dados[i] = (byte)(id_bloco + i);
-                }
+            if (requisitar_bloco_remoto(id_bloco, cache_bloco->dados) == 0) {
+                // Dados reais recebidos e já copiados para cache_bloco->dados
                 cache_bloco->valido = 1;
                 
                 memcpy(buffer, &cache_bloco->dados[offset], tamanho);

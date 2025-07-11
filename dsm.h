@@ -117,7 +117,7 @@ int e_meu_bloco(int id_bloco);
 int enviar_mensagem(int id_processo_destino, Mensagem *msg);
 int receber_mensagem(int socket_cliente, Mensagem *msg);
 BlocoCache* obter_bloco_cache(int id_bloco);
-int requisitar_bloco_remoto(int id_bloco);
+int requisitar_bloco_remoto(int id_bloco, byte *dados_recebidos);
 int invalidar_caches_remotos(int id_bloco);
 void imprimir_estatisticas(int id);
 
